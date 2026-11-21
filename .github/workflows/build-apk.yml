@@ -97,6 +97,15 @@ jobs:
                           counts.update(v.upper() for v in vals)
           print('THEME_FILES:', files[:80])
           print('COLOR_COUNTS:', counts.most_common(100))
+          html=open('web/index.html',encoding='utf-8').read()
+          print('HTML_LENGTH:',len(html))
+          seen=set()
+          for m in color.finditer(html):
+              val=m.group().upper()
+              if val not in seen:
+                  seen.add(val)
+                  p=m.start()
+                  print('COLOR_CONTEXT',val,html[max(0,p-280):min(len(html),p+280)].replace('\\n',' ')[:560])
           PY
 
       - name: Set up Java and Gradle
