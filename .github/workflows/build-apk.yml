@@ -102,26 +102,15 @@ jobs:
           path.write_text(html, encoding='utf-8')
           print('Applied purple #4B285F primary and gold #B69A68 accent palette to light and dark themes.')
           PY
-      - name: Inspect current downloader UI for feature integration
+      - name: Inspect downloader controls and engine APIs
         if: steps.web.outputs.found == 'true'
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          from html.parser import HTMLParser
-          h=Path('web/index.html').read_text(encoding='utf-8')
-          class P(HTMLParser):
-              def __init__(self): super().__init__(); self.items=[]
-              def handle_starttag(self,tag,attrs):
-                  a=dict(attrs)
-                  if tag in ('button','nav','header','main','section','input','select','dialog','aside') or a.get('id'): self.items.append((tag,a.get('id'),a.get('class'),a.get('aria-label'),a.get('title')))
-          p=P(); p.feed(h)
-          print('=== ELEMENTS ===')
-          for x in p.items: print(x)
-          print('=== SCRIPT LINES ===')
-          for i,line in enumerate(h.splitlines(),1):
-              if any(k in line for k in ('function ','localStorage','downloadHistory','history','jobs','completed','Native.','onNative','retry','startDownload','addEventListener','onclick')): print(str(i)+': '+line[:500])
-          print('=== HTML START ===')
-          print(h[:7000])
+          lines=Path('web/index.html').read_text(encoding='utf-8').splitlines()
+          for lo,hi in [(120,195),(210,245),(370,485),(480,615),(610,755)]:
+              print(f'=== SOURCE LINES {lo}-{hi} ===')
+              for i in range(lo,min(hi,len(lines))): print(f'{i+1}: {lines[i]}')
           PY
       - name: Set up Java and Gradle
         if: steps.web.outputs.found == 'true'
