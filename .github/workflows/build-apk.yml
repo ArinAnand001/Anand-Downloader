@@ -75,6 +75,30 @@ jobs:
           echo "found=true" >> "$GITHUB_OUTPUT"
           echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
 
+      - name: Inspect app palette for theme update
+        if: steps.web.outputs.found == 'true'
+        run: |
+          python3 - <<'PY'
+          import os, re, collections
+          counts=collections.Counter()
+          files=[]
+          color=re.compile(r'#[0-9a-fA-F]{3,8}|rgba?\([^)]*\)|hsla?\([^)]*\)', re.I)
+          for root, _, names in os.walk('web'):
+              for name in names:
+                  if name.lower().endswith(('.css','.html','.js','.ts','.json')):
+                      path=os.path.join(root,name)
+                      try:
+                          data=open(path,encoding='utf-8').read()
+                      except Exception:
+                          continue
+                      vals=color.findall(data)
+                      if vals:
+                          files.append((path,len(vals)))
+                          counts.update(v.upper() for v in vals)
+          print('THEME_FILES:', files[:80])
+          print('COLOR_COUNTS:', counts.most_common(100))
+          PY
+
       - name: Set up Java and Gradle
         if: steps.web.outputs.found == 'true'
         run: |
@@ -1949,12 +1973,13 @@ jobs:
 
           # User-provided Playful Cartoon Face launcher icon.
           cp "Playful Cartoon Face.jpg" $R/drawable-nodpi/ic_launcher_face.jpg
-          printf '%s\n' \
-            '<?xml version="1.0" encoding="utf-8"?>' \\
-            '<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">' \\
-            '    <background android:drawable="@color/icon_bg" />' \\
-            '    <foreground android:drawable="@drawable/ic_launcher_face" />' \\
-            '</adaptive-icon>' > $R/mipmap-anydpi-v26/ic_launcher.xml
+          cat > $R/mipmap-anydpi-v26/ic_launcher.xml <<'EOF_ICON'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/icon_bg" />
+              <foreground android:drawable="@drawable/ic_launcher_face" />
+          </adaptive-icon>
+          EOF_ICON
           echo "Project created."
 
       - name: Prepare the signing key
