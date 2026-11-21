@@ -75,39 +75,33 @@ jobs:
           echo "found=true" >> "$GITHUB_OUTPUT"
           echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
 
-      - name: Inspect app palette for theme update
+      - name: Apply purple and gold brand palette
         if: steps.web.outputs.found == 'true'
         run: |
           python3 - <<'PY'
-          import os, re, collections
-          counts=collections.Counter()
-          files=[]
-          color=re.compile(r'#[0-9a-fA-F]{3,8}|rgba?\([^)]*\)|hsla?\([^)]*\)', re.I)
-          for root, _, names in os.walk('web'):
-              for name in names:
-                  if name.lower().endswith(('.css','.html','.js','.ts','.json')):
-                      path=os.path.join(root,name)
-                      try:
-                          data=open(path,encoding='utf-8').read()
-                      except Exception:
-                          continue
-                      vals=color.findall(data)
-                      if vals:
-                          files.append((path,len(vals)))
-                          counts.update(v.upper() for v in vals)
-          print('THEME_FILES:', files[:80])
-          print('COLOR_COUNTS:', counts.most_common(100))
-          html=open('web/index.html',encoding='utf-8').read()
-          print('HTML_LENGTH:',len(html))
-          seen=set()
-          for m in color.finditer(html):
-              val=m.group().upper()
-              if val not in seen:
-                  seen.add(val)
-                  p=m.start()
-                  print('COLOR_CONTEXT',val,html[max(0,p-280):min(len(html),p+280)].replace('\\n',' ')[:560])
+          from pathlib import Path
+          import sys
+          path = Path('web/index.html')
+          html = path.read_text(encoding='utf-8')
+          replacements = {
+              '--bg:#F4F2ED; --card:#FFFFFF; --ink:#16171B; --muted:#6C6D74; --line:#E6E2D9;':
+              '--bg:#F7F4F8; --card:#FFFFFF; --ink:#16171B; --muted:#6C6D74; --line:#E7E0EA;',
+              '--accent:#EE5530; --accent-2:#D9431F; --on-accent:#FFFFFF; --soft:#FCE7E0; --chip:#F2EFE8;':
+              '--accent:#4B285F; --accent-2:#B69A68; --on-accent:#FFFFFF; --soft:#F1EAF5; --chip:#F5F0F6;',
+              '--bg:#101115; --card:#1A1B21; --ink:#F3F3F5; --muted:#9C9DA6; --line:#2A2B33;':
+              '--bg:#110C15; --card:#1D1622; --ink:#F3F0F5; --muted:#B2A8B8; --line:#3A2C40;',
+              '--accent:#FF6B45; --accent-2:#FF8462; --on-accent:#1A0E0A; --soft:#3A231C; --chip:#24252D;':
+              '--accent:#4B285F; --accent-2:#B69A68; --on-accent:#FFFFFF; --soft:#34243E; --chip:#2B2230;',
+          }
+          for old, new in replacements.items():
+              n = html.count(old)
+              if n != 1:
+                  print(f'Expected exactly one occurrence of CSS palette declaration, found {n}: {old}', file=sys.stderr)
+                  sys.exit(1)
+              html = html.replace(old, new, 1)
+          path.write_text(html, encoding='utf-8')
+          print('Applied purple #4B285F primary and gold #B69A68 accent palette to light and dark themes.')
           PY
-
       - name: Set up Java and Gradle
         if: steps.web.outputs.found == 'true'
         run: |
@@ -1913,14 +1907,14 @@ jobs:
 
           cat > $R/values/colors.xml <<'EOF_RES2'
           <resources>
-              <color name="app_bg">#F4F2ED</color>
+              <color name="app_bg">#F7F4F8</color>
               <color name="icon_bg">#FFFFFF</color>
           </resources>
           EOF_RES2
 
           cat > $R/values-night/colors.xml <<'EOF_RES3'
           <resources>
-              <color name="app_bg">#101115</color>
+              <color name="app_bg">#110C15</color>
           </resources>
           EOF_RES3
 
@@ -1929,7 +1923,7 @@ jobs:
               <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar">
                   <item name="android:windowBackground">@color/app_bg</item>
                   <item name="android:statusBarColor">@color/app_bg</item>
-                  <item name="android:navigationBarColor">#FF16171B</item>
+                  <item name="android:navigationBarColor">@color/app_bg</item>
                   <item name="android:windowLightStatusBar">true</item>
               </style>
           </resources>
