@@ -340,6 +340,7 @@ jobs:
             }).catch(function () {});
           }
           """
+          feature_js = feature_js.replace('\\\\', '\\\\')
           feature_js = feature_js.replace('__APP_VERSION__', json.dumps(os.environ.get('APP_VERSION', '1.1')))
           feature_js = feature_js.replace('__RELEASE_NOTES__', json.dumps(os.environ.get('RELEASE_NOTES', 'Download history, notifications and app updates.')))
           replace_once('  /* ---------- bottom sheet ---------- */', feature_js + '\n  /* ---------- bottom sheet ---------- */', 'feature script insertion point')
