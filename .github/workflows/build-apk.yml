@@ -388,6 +388,20 @@ jobs:
           path.write_text(html, encoding='utf-8')
           print('Applied: persistent History with one-tap repeat, notification inbox, app tips, GitHub release checks, and V1.1 Settings notes.')
           PY
+
+      - name: Validate downloader JavaScript
+        if: steps.web.outputs.found == 'true'
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          html = Path('web/index.html').read_text(encoding='utf-8')
+          scripts = re.findall(r'<script(?:\\s[^>]*)?>(.*?)</script>', html, flags=re.S | re.I)
+          if not scripts:
+              raise SystemExit('No inline app script found')
+          Path('/tmp/arin-downloader-app.js').write_text(scripts[-1], encoding='utf-8')
+          PY
+          node --check /tmp/arin-downloader-app.js
       - name: Set up Java and Gradle
         if: steps.web.outputs.found == 'true'
         run: |
@@ -2324,6 +2338,16 @@ jobs:
           cp "$OUT/app-armeabi-v7a-release.apk" "${APP_NAME}-32bit.apk"
           ls -la "${APP_NAME}.apk" "${APP_NAME}-32bit.apk"
 
+      - name: Upload APKs as workflow artifacts
+        if: steps.web.outputs.found == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: arins-downloader-v${{ env.APP_VERSION }}-build-${{ github.run_number }}
+          path: |
+            Arin's Downloader.apk
+            Arin's Downloader-32bit.apk
+          if-no-files-found: error
+          retention-days: 90
       - name: Publish the download
         if: steps.web.outputs.found == 'true'
         env:
@@ -2334,15 +2358,24 @@ jobs:
           TAG="build-${GITHUB_RUN_NUMBER}"
           LINK="https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/${APP_NAME}.apk"
           NOTES=$(printf 'Version: V%s\nBuild: %s\n\nRelease notes:\n%s\n\nBuilt from `%s`.\n\nInstall: open this page on your Android phone, tap **%s.apk**, then tap Install. If Android asks, allow installs from this source.\n\nOlder 32-bit phones that say "App not installed": use **%s-32bit.apk** instead.' "$APP_VERSION" "$GITHUB_RUN_NUMBER" "$RELEASE_NOTES" "$ZIP" "$APP_NAME" "$APP_NAME")
-          gh release create "$TAG" "${APP_NAME}.apk" "${APP_NAME}-32bit.apk" --title "${APP_NAME} V${APP_VERSION} (Build ${GITHUB_RUN_NUMBER})" --notes "$NOTES" --latest --target "$(git rev-parse HEAD)"
-          # keep the five newest builds
-          gh release list --limit 100 --json tagName,createdAt --jq 'sort_by(.createdAt) | reverse | .[5:] | .[].tagName' | while read -r old; do
-            [ -n "$old" ] && gh release delete "$old" --yes --cleanup-tag || true
-          done
+          RELEASE_CREATED=false
+          if gh release create "$TAG" "${APP_NAME}.apk" "${APP_NAME}-32bit.apk" --title "${APP_NAME} V${APP_VERSION} (Build ${GITHUB_RUN_NUMBER})" --notes "$NOTES" --latest --target "$(git rev-parse HEAD)"; then
+            RELEASE_CREATED=true
+            # Keep the five newest releases. Cleanup errors must not invalidate a published build.
+            gh release list --limit 100 --json tagName,createdAt --jq 'sort_by(.createdAt) | reverse | .[5:] | .[].tagName' | while read -r old; do
+              [ -n "$old" ] && gh release delete "$old" --yes --cleanup-tag || true
+            done || true
+          else
+            echo "::warning::GitHub Release publishing was denied. The APKs are available in this run's Artifacts section."
+          fi
           {
-            echo "## Your app is ready"
+            echo "## Arin's Downloader V${APP_VERSION} is built"
             echo ""
-            echo "Download on your phone: $LINK"
+            echo "The 64-bit and 32-bit APKs are attached as workflow artifacts for this run."
             echo ""
-            echo "Older 32-bit phones: https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/${APP_NAME}-32bit.apk"
+            if [ "$RELEASE_CREATED" = "true" ]; then
+              echo "Download: $LINK"
+            else
+              echo "Open the Actions run and download the APK artifact: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
