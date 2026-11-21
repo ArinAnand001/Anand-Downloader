@@ -32,6 +32,8 @@ concurrency:
 env:
   APP_NAME: "Arin's Downloader"                # name under the app icon, the folder in Music/ and Movies/, and the APK file name
   APP_ID: com.anand.downloader   # Android's id for the app. Changing it makes a separate app.
+  APP_VERSION: "1.1"
+  RELEASE_NOTES: "Download history with one-tap re-download; notification inbox with app tips and update alerts; V1.1 release notes in Settings; purple and gold theme."
   YTDL_ANDROID: 0.18.1           # youtubedl-android: yt-dlp, Python, FFmpeg and QuickJS packed for Android
 
 jobs:
@@ -102,15 +104,288 @@ jobs:
           path.write_text(html, encoding='utf-8')
           print('Applied purple #4B285F primary and gold #B69A68 accent palette to light and dark themes.')
           PY
-      - name: Inspect downloader controls and engine APIs
+      - name: Add download history, notification inbox and version details
         if: steps.web.outputs.found == 'true'
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          lines=Path('web/index.html').read_text(encoding='utf-8').splitlines()
-          for lo,hi in [(120,195),(210,245),(370,485),(480,615),(610,755)]:
-              print(f'=== SOURCE LINES {lo}-{hi} ===')
-              for i in range(lo,min(hi,len(lines))): print(f'{i+1}: {lines[i]}')
+          import json, os, sys
+
+          path = Path('web/index.html')
+          html = path.read_text(encoding='utf-8')
+
+          def replace_once(old, new, label):
+              global html
+              count = html.count(old)
+              if count != 1:
+                  print(f'Expected one {label}, found {count}', file=sys.stderr)
+                  sys.exit(1)
+              html = html.replace(old, new, 1)
+
+          header_old = '    <button class="icon-btn" id="settingsBtn" aria-label="Settings" data-i="gear"></button>'
+          header_new = '''    <div class="top-actions">
+                <button class="icon-btn history-btn" id="historyBtn" aria-label="History" title="History"><span data-i="list"></span><span>History</span></button>
+                <button class="icon-btn notification-btn" id="notificationsBtn" aria-label="Notifications" title="Notifications"><span data-i="info"></span><span class="notif-count" id="notifCount" hidden></span></button>
+                <button class="icon-btn" id="settingsBtn" aria-label="Settings" data-i="gear"></button>
+              </div>'''
+          replace_once(header_old, header_new, 'settings header button')
+
+          history_marker = '''  </section>
+          </div>
+
+          <div class="scrim" id="scrim">'''
+          history_html = '''  </section>
+            <section class="list history-section" id="historySection">
+              <div class="list-head"><h2>History</h2><button class="text-btn" id="clearHistoryBtn" hidden>Clear finished</button></div>
+              <div id="historyList"></div>
+              <div class="empty" id="historyEmpty">
+                <div class="eico" data-i="list"></div>
+                <b>No download history yet</b>
+                <p>Your previous downloads will appear here. You can download any item again.</p>
+              </div>
+            </section>
+          </div>
+
+          <div class="scrim" id="scrim">'''
+          replace_once(history_marker, history_html, 'downloads section end')
+
+          css = r"""
+          .top-actions{display:flex;align-items:center;gap:7px}
+          .icon-btn.history-btn{width:auto;min-width:40px;padding:0 10px;gap:6px;font-size:12px;font-weight:700}
+          .icon-btn.history-btn svg{width:17px;height:17px}
+          #notificationsBtn{position:relative}
+          .notif-count{position:absolute;top:-4px;right:-4px;min-width:17px;height:17px;padding:0 4px;border-radius:99px;background:var(--accent-2);color:#fff;font-size:10px;line-height:17px;font-weight:800;text-align:center}
+          .history-section{margin-top:22px}
+          .history-card{display:grid;grid-template-columns:minmax(0,1fr);gap:9px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:13px;margin-top:10px}
+          .history-copy{min-width:0}
+          .history-title{display:block;font-weight:750;line-height:1.35;overflow-wrap:anywhere}
+          .history-meta{display:block;color:var(--muted);font-size:12px;margin-top:4px}
+          .history-status{display:inline-block;color:var(--accent);font-weight:750}
+          .history-actions{display:flex;align-items:center;gap:9px}
+          .history-redo{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:38px;padding:0 13px;border-radius:12px;background:var(--accent);color:#fff;font-size:13px;font-weight:700}
+          .history-redo svg{width:17px;height:17px}
+          .history-remove{min-height:38px;padding:0 10px;color:var(--muted);font-size:12px;font-weight:650}
+          .notification-card{border:1px solid var(--line);border-left:3px solid var(--accent);background:var(--card);border-radius:14px;padding:13px;margin-top:10px}
+          .notification-card.update{border-left-color:var(--accent-2)}
+          .notification-card h4{margin:0;font-size:14px}
+          .notification-card p{margin:6px 0 0;color:var(--muted);font-size:13px;line-height:1.45;white-space:pre-wrap}
+          .notification-card small{display:block;margin-top:8px;color:var(--muted);font-size:11px}
+          .notification-label{display:inline-block;margin-left:6px;padding:2px 7px;border-radius:99px;background:var(--chip);color:var(--accent-2);font-size:10px;font-weight:800;vertical-align:2px}
+          """
+          replace_once('</style>', css + '\n</style>', 'style closing tag')
+
+          feature_js = r"""
+          S.history = store.get('downloadHistory', []);
+          S.notifications = store.get('appNotifications', []);
+          var CURRENT_VERSION = __APP_VERSION__;
+          var RELEASE_NOTES = __RELEASE_NOTES__;
+
+          function persistHistory() {
+            store.set('downloadHistory', S.history.slice(0, 100));
+          }
+          function trackStartedDownload(id, spec) {
+            if (id == null || id === '') return;
+            var record = Object.assign({}, spec, { id: String(id), createdAt: Date.now(), status: 'waiting' });
+            S.history = [record].concat(S.history.filter(function (x) { return String(x.id) !== String(id); })).slice(0, 100);
+            persistHistory();
+            renderHistory();
+          }
+          function updateHistoryFromJob(j) {
+            if (!j || j.id == null) return;
+            var id = String(j.id);
+            var at = S.history.findIndex(function (x) { return String(x.id) === id; });
+            var prev = at >= 0 ? S.history[at] : {};
+            var state = jobState(j);
+            var item = Object.assign({}, prev, {
+              id: id,
+              url: j.url || prev.url || '',
+              title: j.title || prev.title || j.url || 'Download',
+              thumb: j.thumb || prev.thumb || '',
+              uploader: j.uploader || prev.uploader || '',
+              site: j.site || prev.site || '',
+              kind: j.kind || prev.kind || 'video',
+              quality: j.quality || prev.quality || '',
+              label: j.label || prev.label || '',
+              playlist: j.playlist != null ? j.playlist : !!prev.playlist,
+              count: j.count || prev.count || 1,
+              duration: j.duration || prev.duration || 0,
+              status: state,
+              createdAt: prev.createdAt || j.createdAt || Date.now()
+            });
+            if (j.files) item.files = j.files;
+            if (j.error) item.error = j.error;
+            if (j.message) item.message = j.message;
+            if (state === 'done') item.completedAt = prev.completedAt || Date.now();
+            if (at >= 0) S.history[at] = item;
+            else if (item.url) S.history.unshift(item);
+            S.history = S.history.slice(0, 100);
+            persistHistory();
+          }
+          function renderHistory() {
+            var box = $('#historyList'), empty = $('#historyEmpty'), clear = $('#clearHistoryBtn');
+            if (!box) return;
+            var items = S.history.slice(0, 50);
+            if (empty) empty.hidden = items.length > 0;
+            if (clear) clear.hidden = !items.some(function (x) { return x.status !== 'waiting' && x.status !== 'running'; });
+            box.innerHTML = items.map(function (item) {
+              var status = item.status === 'done' ? 'Saved' : item.status === 'failed' ? 'Failed' : item.status === 'cancelled' ? 'Cancelled' : 'In progress';
+              var kind = item.kind === 'audio' ? 'MP3' : (item.label || 'Video');
+              var date = new Date(Number(item.completedAt || item.createdAt) || Date.now()).toLocaleString();
+              return '<article class="history-card"><div class="history-copy">' +
+                '<b class="history-title">' + esc(item.title || item.url || 'Download') + '</b>' +
+                '<small class="history-meta"><span class="history-status">' + esc(status) + '</span> · ' + esc(kind) + ' · ' + esc(date) + '</small>' +
+                (item.site ? '<small class="history-meta">' + esc(item.site) + '</small>' : '') +
+                '</div><div class="history-actions">' +
+                (item.url ? '<button class="history-redo" data-hretry="' + esc(item.id) + '">' + icon('retry') + 'Download again</button>' : '') +
+                '<button class="history-remove" data-hremove="' + esc(item.id) + '">Remove</button>' +
+                '</div></article>';
+            }).join('');
+          }
+          function retryHistory(id) {
+            var item = S.history.filter(function (x) { return String(x.id) === String(id); })[0];
+            if (!item || !item.url) { toast('This history item has no saved link'); return; }
+            var spec = {
+              url: item.url, title: item.title || 'Download', thumb: item.thumb || '',
+              uploader: item.uploader || '', site: item.site || '',
+              kind: item.kind || 'video', quality: item.quality || 'best',
+              label: item.label || '', playlist: !!item.playlist,
+              count: item.count || 1, duration: item.duration || 0,
+              sizeHint: Number(item.sizeHint) || 0
+            };
+            var newId = call('download', JSON.stringify(spec));
+            if (!newId) { toast('Could not restart this download'); return; }
+            trackStartedDownload(newId, spec);
+            toast('Added to downloads');
+            window.scrollTo({ top: $('.list').offsetTop - 12, behavior: 'smooth' });
+          }
+          function removeHistoryItem(id) {
+            S.history = S.history.filter(function (x) { return String(x.id) !== String(id); });
+            persistHistory();
+            renderHistory();
+          }
+          function clearFinishedHistory() {
+            S.history = S.history.filter(function (x) { return x.status === 'waiting' || x.status === 'running'; });
+            persistHistory();
+            renderHistory();
+            toast('Finished history cleared');
+          }
+
+          function persistNotifications() {
+            store.set('appNotifications', S.notifications.slice(0, 60));
+            renderNotificationBadge();
+          }
+          function pushNotification(id, title, body, type) {
+            if (S.notifications.some(function (x) { return x.id === id; })) return;
+            S.notifications.unshift({ id: id, title: title, body: body, type: type || 'tip', createdAt: Date.now(), read: false });
+            S.notifications = S.notifications.slice(0, 60);
+            persistNotifications();
+          }
+          function seedNotifications() {
+            [
+              ['howto-start', 'Getting started', 'Paste a video or music link, or use Share from another app and choose Arin\\'s Downloader. Tap Get download options.'],
+              ['howto-format', 'Choose your format', 'Choose Video for a video file or Music · MP3 for audio. Select the quality you need, then tap Download.'],
+              ['howto-history', 'Download again from History', 'Your previous download attempts are saved in History. Tap Download again to repeat a download with its saved format and quality.'],
+              ['howto-share', 'Share a link into the app', 'Open YouTube, Instagram, Facebook or another supported app, tap Share, and select Arin\\'s Downloader.']
+            ].forEach(function (x) { pushNotification(x[0], x[1], x[2], 'tip'); });
+          }
+          function renderNotificationBadge() {
+            var badge = $('#notifCount');
+            if (!badge) return;
+            var count = S.notifications.filter(function (x) { return !x.read; }).length;
+            badge.hidden = count === 0;
+            badge.textContent = count > 9 ? '9+' : String(count);
+          }
+          function openNotifications() {
+            S.notifications.forEach(function (x) { x.read = true; });
+            persistNotifications();
+            var html = '<h3>Notifications</h3><p class="small muted">App tips, release notes and update alerts.</p>';
+            if (!S.notifications.length) html += '<div class="empty"><b>You are all caught up</b></div>';
+            S.notifications.slice(0, 50).forEach(function (n) {
+              var date = new Date(Number(n.createdAt) || Date.now()).toLocaleString();
+              html += '<article class="notification-card ' + (n.type === 'update' ? 'update' : '') + '">' +
+                '<h4>' + esc(n.title) + (n.type === 'update' ? '<span class="notification-label">UPDATE</span>' : '') + '</h4>' +
+                '<p>' + esc(n.body) + '</p><small>' + esc(date) + '</small></article>';
+            });
+            html += '<div class="stack"><button class="ghost" data-act="close">Close</button></div>';
+            openSheet('notifications', html);
+          }
+          function compareVersions(a, b) {
+            var x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
+            for (var i = 0; i < Math.max(x.length, y.length); i++) {
+              var diff = (x[i] || 0) - (y[i] || 0);
+              if (diff) return diff;
+            }
+            return 0;
+          }
+          function checkLatestRelease() {
+            if (!window.fetch) return;
+            fetch('https://api.github.com/repos/ArinAnand001/Anand-Downloader/releases/latest', {
+              headers: { 'Accept': 'application/vnd.github+json' }, cache: 'no-store'
+            }).then(function (response) {
+              if (!response.ok) throw new Error('Release check unavailable');
+              return response.json();
+            }).then(function (release) {
+              var body = release.body || '';
+              var name = release.name || '';
+              var match = /Version:\s*V?([0-9]+(?:\.[0-9]+)*)/i.exec(body) || /V([0-9]+(?:\.[0-9]+)*)/i.exec(name);
+              if (!match) return;
+              var version = match[1];
+              var notes = body.split('Release notes:')[1] || body;
+              notes = notes.split('Built from')[0].trim().slice(0, 850) || RELEASE_NOTES;
+              if (compareVersions(version, CURRENT_VERSION) > 0) {
+                pushNotification('update-v' + version, 'New update available · V' + version, 'A newer version of Arin\\'s Downloader is available.\\n\\n' + notes + '\\n\\nOpen the project\\'s GitHub Releases page to get the update.', 'update');
+              } else if (compareVersions(version, CURRENT_VERSION) === 0) {
+                pushNotification('release-v' + version, 'Arin\\'s Downloader V' + version + ' is here', notes, 'update');
+              }
+            }).catch(function () {});
+          }
+          """
+          feature_js = feature_js.replace('__APP_VERSION__', json.dumps(os.environ.get('APP_VERSION', '1.1')))
+          feature_js = feature_js.replace('__RELEASE_NOTES__', json.dumps(os.environ.get('RELEASE_NOTES', 'Download history, notifications and app updates.')))
+          replace_once('  /* ---------- bottom sheet ---------- */', feature_js + '\n  /* ---------- bottom sheet ---------- */', 'feature script insertion point')
+
+          replace_once("    var id = call('download', JSON.stringify(spec));\n    closeSheet();",
+                       "    var id = call('download', JSON.stringify(spec));\n    if (id) trackStartedDownload(id, spec);\n    closeSheet();",
+                       'start-download job creation')
+
+          replace_once("    listChrome();\n    if (S.sheet === 'job' && S.sheetJob === j.id) openJobSheet(j.id);",
+                       "    listChrome();\n    updateHistoryFromJob(j);\n    renderHistory();\n    if (S.sheet === 'job' && S.sheetJob === j.id) openJobSheet(j.id);",
+                       'job history update')
+
+          replace_once("  $('#settingsBtn').addEventListener('click', openSettings);",
+                       """  $('#historyBtn').addEventListener('click', function () {
+              renderHistory();
+              $('#historySection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+            $('#notificationsBtn').addEventListener('click', openNotifications);
+            $('#clearHistoryBtn').addEventListener('click', clearFinishedHistory);
+            $('#historyList').addEventListener('click', function (e) {
+              var retry = e.target.closest('[data-hretry]');
+              if (retry) { retryHistory(retry.getAttribute('data-hretry')); return; }
+              var remove = e.target.closest('[data-hremove]');
+              if (remove) removeHistoryItem(remove.getAttribute('data-hremove'));
+            });
+            $('#settingsBtn').addEventListener('click', openSettings);""",
+                       'header and history event handlers')
+
+          settings_footer_old = """      '<p class="ver">' + esc(S.appName) + (S.appVersion ? ' ' + esc(S.appVersion) : '') + ' · powered by yt-dlp and FFmpeg</p>');"""
+          settings_footer_new = """      '<div class="group"><b>App version · V' + CURRENT_VERSION + '</b><p>' + esc(RELEASE_NOTES) + '</p><button class="ghost" data-act="notifications">' + icon('info') + 'View notifications</button></div>' +
+            '<p class="ver">' + esc(S.appName) + ' V' + CURRENT_VERSION + ' · powered by yt-dlp and FFmpeg</p>');"""
+          replace_once(settings_footer_old, settings_footer_new, 'settings version footer')
+
+          replace_once("      case 'close': closeSheet(); break;",
+                       "      case 'close': closeSheet(); break;\n      case 'notifications': openNotifications(); break;",
+                       'settings notification action')
+
+          replace_once("      S.jobs = Array.isArray(st.jobs) ? st.jobs : [];",
+                       "      S.jobs = Array.isArray(st.jobs) ? st.jobs : [];\n      S.jobs.forEach(updateHistoryFromJob);",
+                       'boot job migration')
+          replace_once("    renderAllJobs();\n    renderEngine();",
+                       "    renderAllJobs();\n    renderHistory();\n    seedNotifications();\n    renderNotificationBadge();\n    checkLatestRelease();\n    renderEngine();",
+                       'boot history and notification initialization')
+
+          path.write_text(html, encoding='utf-8')
+          print('Applied: persistent History with one-tap repeat, notification inbox, app tips, GitHub release checks, and V1.1 Settings notes.')
           PY
       - name: Set up Java and Gradle
         if: steps.web.outputs.found == 'true'
@@ -185,7 +460,7 @@ jobs:
                   minSdk 26
                   targetSdk 34
                   versionCode(Integer.parseInt(buildNumber))
-                  versionName('1.' + buildNumber)
+                  versionName(System.getenv('APP_VERSION') ?: '1.1')
               }
 
               // One APK for modern 64-bit phones and one for older 32-bit phones, instead of a single huge one.
@@ -2057,8 +2332,8 @@ jobs:
           set -euo pipefail
           TAG="build-${GITHUB_RUN_NUMBER}"
           LINK="https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/${APP_NAME}.apk"
-          NOTES=$(printf 'Built from `%s`.\n\nInstall: open this page on your Android phone, tap **%s.apk**, then tap Install. If Android asks, allow installs from this source.\n\nOlder 32-bit phones that say "App not installed": use **%s-32bit.apk** instead.\n\nThis version installs over the previous one.' "$ZIP" "$APP_NAME" "$APP_NAME")
-          gh release create "$TAG" "${APP_NAME}.apk" "${APP_NAME}-32bit.apk" --title "${APP_NAME} build ${GITHUB_RUN_NUMBER}" --notes "$NOTES" --latest --target "$(git rev-parse HEAD)"
+          NOTES=$(printf 'Version: V%s\nBuild: %s\n\nRelease notes:\n%s\n\nBuilt from `%s`.\n\nInstall: open this page on your Android phone, tap **%s.apk**, then tap Install. If Android asks, allow installs from this source.\n\nOlder 32-bit phones that say "App not installed": use **%s-32bit.apk** instead.' "$APP_VERSION" "$GITHUB_RUN_NUMBER" "$RELEASE_NOTES" "$ZIP" "$APP_NAME" "$APP_NAME")
+          gh release create "$TAG" "${APP_NAME}.apk" "${APP_NAME}-32bit.apk" --title "${APP_NAME} V${APP_VERSION} (Build ${GITHUB_RUN_NUMBER})" --notes "$NOTES" --latest --target "$(git rev-parse HEAD)"
           # keep the five newest builds
           gh release list --limit 100 --json tagName,createdAt --jq 'sort_by(.createdAt) | reverse | .[5:] | .[].tagName' | while read -r old; do
             [ -n "$old" ] && gh release delete "$old" --yes --cleanup-tag || true
