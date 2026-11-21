@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Soft violet aura behind the ghost -->
+    <path
+        android:fillColor="#6D28D9"
+        android:fillAlpha="0.30"
+        android:pathData="M54,12 C33,12 19,28 19,49 L19,74 C19,82 28,86 34,80 L40,74 L47,81 C51,84 57,84 61,81 L68,74 L74,80 C80,86 89,82 89,74 L89,49 C89,28 75,12 54,12 Z" />
+    <!-- Main ghost silhouette -->
+    <path
+        android:fillColor="#F3EDFF"
+        android:strokeColor="#B68CFF"
+        android:strokeWidth="2"
+        android:strokeLineJoin="round"
+        android:pathData="M54,19 C37,19 26,32 26,49 L26,72 C26,75 29,77 32,75 L40,69 L47,76 C51,79 57,79 61,76 L68,69 L76,75 C79,77 82,75 82,72 L82,49 C82,32 71,19 54,19 Z" />
+    <!-- Ghost eyes -->
+    <path
+        android:fillColor="#291348"
+        android:pathData="M41,40 C44,40 46,43 46,47 C46,51 44,53 41,53 C38,53 36,51 36,47 C36,43 38,40 41,40 Z" />
+    <path
+        android:fillColor="#291348"
+        android:pathData="M67,40 C70,40 72,43 72,47 C72,51 70,53 67,53 C64,53 62,51 62,47 C62,43 64,40 67,40 Z" />
+    <!-- Download arrow integrated into the ghost -->
+    <path
+        android:fillColor="#8B5CF6"
+        android:pathData="M51,55 L57,55 L57,64 L63,59 L66,63 L54,74 L42,63 L45,59 L51,64 Z" />
+    <path
+        android:fillColor="#5B21B6"
+        android:pathData="M42,77 L66,77 L66,81 L42,81 Z" />
+</vector>
