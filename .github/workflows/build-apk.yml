@@ -30,7 +30,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  APP_NAME: Specter Downloader                # name under the app icon, the folder in Music/ and Movies/, and the APK file name
+  APP_NAME: "Arin's Downloader"                # name under the app icon, the folder in Music/ and Movies/, and the APK file name
   APP_ID: com.anand.downloader   # Android's id for the app. Changing it makes a separate app.
   YTDL_ANDROID: 0.18.1           # youtubedl-android: yt-dlp, Python, FFmpeg and QuickJS packed for Android
 
