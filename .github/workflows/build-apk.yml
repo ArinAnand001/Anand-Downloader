@@ -108,7 +108,6 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           from html.parser import HTMLParser
-          import re
           h=Path('web/index.html').read_text(encoding='utf-8')
           class P(HTMLParser):
               def __init__(self): super().__init__(); self.items=[]
@@ -118,13 +117,11 @@ jobs:
           p=P(); p.feed(h)
           print('=== ELEMENTS ===')
           for x in p.items: print(x)
-          print('=== FUNCTIONS ===')
-          for m in re.finditer(r'(?:async\\s+)?function\\s+[\\w$]+\\s*\\([^)]*\\)|(?:const|let|var)\\s+[\\w$]+\\s*=\\s*(?:async\\s*)?[^;]{0,100}=>',h): print(m.group(0)[:250])
-          print('=== STORAGE/DOWNLOAD REFERENCES ===')
+          print('=== SCRIPT LINES ===')
           for i,line in enumerate(h.splitlines(),1):
-              if re.search(r'localStorage|downloadHistory|history|jobs|completed|Native\\.|onNative|retry|startDownload|download\\(',line,re.I): print(f'{i}: {line[:500]}')
+              if any(k in line for k in ('function ','localStorage','downloadHistory','history','jobs','completed','Native.','onNative','retry','startDownload','addEventListener','onclick')): print(str(i)+': '+line[:500])
           print('=== HTML START ===')
-          print(h[:6500])
+          print(h[:7000])
           PY
       - name: Set up Java and Gradle
         if: steps.web.outputs.found == 'true'
