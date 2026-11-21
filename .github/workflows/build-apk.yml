@@ -103,7 +103,7 @@ jobs:
           J=$M/java/com/anand/downloader
           R=$M/res
           rm -rf $A
-          mkdir -p $J $M/assets/www $R/values $R/values-night $R/values-v27 $R/values-night-v27 $R/drawable $R/mipmap-xxxhdpi $R/mipmap-anydpi-v26
+          mkdir -p $J $M/assets/www $R/values $R/values-night $R/values-v27 $R/values-night-v27 $R/drawable $R/drawable-nodpi $R/mipmap-xxxhdpi $R/mipmap-anydpi-v26
           cp -R web/. $M/assets/www/
           echo "sdk.dir=$ANDROID_HOME" > $A/local.properties
 
@@ -1881,7 +1881,7 @@ jobs:
           cat > $R/values/colors.xml <<'EOF_RES2'
           <resources>
               <color name="app_bg">#F4F2ED</color>
-              <color name="icon_bg">#EE5530</color>
+              <color name="icon_bg">#FFFFFF</color>
           </resources>
           EOF_RES2
 
@@ -1947,13 +1947,13 @@ jobs:
               f.write('<resources>\n    <string name="app_name">' + name + '</string>\n</resources>\n')
           PY
 
-          # Specter ghost logo: scalable Android vector foreground.
-          cp specter-icon.xml $R/drawable/ic_specter_foreground.xml
-          printf '%s\n' \
-            '<?xml version="1.0" encoding="utf-8"?>' \
-            '<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">' \
-            '    <background android:drawable="@color/icon_bg" />' \
-            '    <foreground android:drawable="@drawable/ic_specter_foreground" />' \
+          # User-provided Playful Cartoon Face launcher icon.
+          cp "Playful Cartoon Face.jpg" $R/drawable-nodpi/ic_launcher_face.jpg
+          printf '%s\\n' \\
+            '<?xml version="1.0" encoding="utf-8"?>' \\
+            '<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">' \\
+            '    <background android:drawable="@color/icon_bg" />' \\
+            '    <foreground android:drawable="@drawable/ic_launcher_face" />' \\
             '</adaptive-icon>' > $R/mipmap-anydpi-v26/ic_launcher.xml
           echo "Project created."
 
