@@ -1947,38 +1947,14 @@ jobs:
               f.write('<resources>\n    <string name="app_name">' + name + '</string>\n</resources>\n')
           PY
 
-          # App icon: taken from the zip's icons folder.
-          ICON=""
-          for c in web/icons/icon-512.png web/icons/icon-192.png web/icon-512.png web/icon.png; do
-            if [ -f "$c" ]; then ICON="$c"; break; fi
-          done
-          FG=""
-          for c in web/icons/maskable-512.png web/maskable-512.png; do
-            if [ -f "$c" ]; then FG="$c"; break; fi
-          done
-          if [ -n "$ICON" ]; then
-            cp "$ICON" $R/mipmap-xxxhdpi/ic_launcher.png
-          else
-            echo "::warning::No icon found in the zip (icons/icon-512.png). Using a plain colored icon."
-            python3 - <<'PY'
-          import struct, zlib
-          w = h = 192
-          raw = b''.join(b'\x00' + b'\xee\x55\x30\xff' * w for _ in range(h))
-          def chunk(t, d):
-              return struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t + d) & 0xffffffff)
-          png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 6, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b'')
-          open('android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png', 'wb').write(png)
-          PY
-          fi
-          if [ -n "$FG" ]; then
-            cp "$FG" $R/mipmap-xxxhdpi/ic_launcher_foreground.png
-            printf '%s\n' \
-              '<?xml version="1.0" encoding="utf-8"?>' \
-              '<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">' \
-              '    <background android:drawable="@color/icon_bg" />' \
-              '    <foreground android:drawable="@mipmap/ic_launcher_foreground" />' \
-              '</adaptive-icon>' > $R/mipmap-anydpi-v26/ic_launcher.xml
-          fi
+          # Specter ghost logo: scalable Android vector foreground.
+          cp specter-icon.xml $R/drawable/ic_specter_foreground.xml
+          printf '%s\n' \
+            '<?xml version="1.0" encoding="utf-8"?>' \
+            '<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">' \
+            '    <background android:drawable="@color/icon_bg" />' \
+            '    <foreground android:drawable="@drawable/ic_specter_foreground" />' \
+            '</adaptive-icon>' > $R/mipmap-anydpi-v26/ic_launcher.xml
           echo "Project created."
 
       - name: Prepare the signing key
