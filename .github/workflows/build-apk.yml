@@ -107,21 +107,24 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          from html.parser import HTMLParser
           import re
           h=Path('web/index.html').read_text(encoding='utf-8')
-          print('=== DOCUMENT SIZE ===',len(h))
-          print('=== TAGS WITH IDS ===')
-          for m in re.finditer(r'<(button|nav|header|main|section|div|input|select|dialog|aside)[^>]*\\bid=[\\"\\']([^\\"\\']+)',h,re.I):
-              print(m.group(0)[:260])
-          print('=== BUTTON CONTENT ===')
-          for m in re.finditer(r'<button\\b[^>]*>.*?</button>',h,re.I|re.S): print(re.sub(r'\\s+',' ',m.group(0))[:500])
-          print('=== SCRIPT FUNCTION/HOOK SIGNATURES ===')
-          for m in re.finditer(r'(?:async\\s+)?function\\s+[\\w$]+\\s*\\([^)]*\\)|(?:const|let|var)\\s+[\\w$]+\\s*=\\s*(?:async\\s*)?\\([^)]*\\)\\s*=>|addEventListener\\s*\\([^;]{0,180}',h): print(m.group(0)[:260])
-          print('=== STORAGE / DOWNLOAD DATA REFERENCES ===')
-          for line in h.splitlines():
-              if re.search(r'localStorage|downloadHistory|history|jobs|completed|Native\\.|onNative|retry|startDownload|download\\(',line,re.I): print(line[:500])
+          class P(HTMLParser):
+              def __init__(self): super().__init__(); self.items=[]
+              def handle_starttag(self,tag,attrs):
+                  a=dict(attrs)
+                  if tag in ('button','nav','header','main','section','input','select','dialog','aside') or a.get('id'): self.items.append((tag,a.get('id'),a.get('class'),a.get('aria-label'),a.get('title')))
+          p=P(); p.feed(h)
+          print('=== ELEMENTS ===')
+          for x in p.items: print(x)
+          print('=== FUNCTIONS ===')
+          for m in re.finditer(r'(?:async\\s+)?function\\s+[\\w$]+\\s*\\([^)]*\\)|(?:const|let|var)\\s+[\\w$]+\\s*=\\s*(?:async\\s*)?[^;]{0,100}=>',h): print(m.group(0)[:250])
+          print('=== STORAGE/DOWNLOAD REFERENCES ===')
+          for i,line in enumerate(h.splitlines(),1):
+              if re.search(r'localStorage|downloadHistory|history|jobs|completed|Native\\.|onNative|retry|startDownload|download\\(',line,re.I): print(f'{i}: {line[:500]}')
           print('=== HTML START ===')
-          print(h[:8500])
+          print(h[:6500])
           PY
       - name: Set up Java and Gradle
         if: steps.web.outputs.found == 'true'
