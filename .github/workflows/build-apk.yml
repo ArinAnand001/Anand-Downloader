@@ -102,6 +102,27 @@ jobs:
           path.write_text(html, encoding='utf-8')
           print('Applied purple #4B285F primary and gold #B69A68 accent palette to light and dark themes.')
           PY
+      - name: Inspect current downloader UI for feature integration
+        if: steps.web.outputs.found == 'true'
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          h=Path('web/index.html').read_text(encoding='utf-8')
+          print('=== DOCUMENT SIZE ===',len(h))
+          print('=== TAGS WITH IDS ===')
+          for m in re.finditer(r'<(button|nav|header|main|section|div|input|select|dialog|aside)[^>]*\\bid=[\\"\\']([^\\"\\']+)',h,re.I):
+              print(m.group(0)[:260])
+          print('=== BUTTON CONTENT ===')
+          for m in re.finditer(r'<button\\b[^>]*>.*?</button>',h,re.I|re.S): print(re.sub(r'\\s+',' ',m.group(0))[:500])
+          print('=== SCRIPT FUNCTION/HOOK SIGNATURES ===')
+          for m in re.finditer(r'(?:async\\s+)?function\\s+[\\w$]+\\s*\\([^)]*\\)|(?:const|let|var)\\s+[\\w$]+\\s*=\\s*(?:async\\s*)?\\([^)]*\\)\\s*=>|addEventListener\\s*\\([^;]{0,180}',h): print(m.group(0)[:260])
+          print('=== STORAGE / DOWNLOAD DATA REFERENCES ===')
+          for line in h.splitlines():
+              if re.search(r'localStorage|downloadHistory|history|jobs|completed|Native\\.|onNative|retry|startDownload|download\\(',line,re.I): print(line[:500])
+          print('=== HTML START ===')
+          print(h[:8500])
+          PY
       - name: Set up Java and Gradle
         if: steps.web.outputs.found == 'true'
         run: |
